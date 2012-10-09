@@ -4,7 +4,7 @@ namespace RedisBox;
 
 use \Bind\FastStorage\IStorage;
 
-class Redis implements IStorage
+class Redis /*implements IStorage*/
 {
     const LOCK_KEY_PREFIX = '.lock_key.';
     const TAG_PREFIX      = '.tag.';
@@ -89,7 +89,10 @@ class Redis implements IStorage
         $key = $this->prefix.'.'.$key;
         $client = $this->getClient($key);
 
-        $set = $client->setNX($key, $this->getSerializer()->serialize($value));
+        if (!is_string($value) or is_numeric($value) or is_bool($value)) {
+            $value = $this->getSerializer()->serialize($value);
+        }
+        $set = $client->setNX($key, $value);
 
         if (!$set) {
             return false;

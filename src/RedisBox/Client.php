@@ -148,12 +148,11 @@ class Client
     /**
      * used if some command is not wrapped
     */
-    public function __call($name, $args)
+    /*public function __call($name, $args)
     {
         array_unshift($args, str_replace('_', ' ', $name));
         return $this->_send($args);
-    }
-
+    }*/
 
     public function setNX($key, $value)
     {
@@ -167,9 +166,9 @@ class Client
 
     public function sAdd($set, $value)
     {
-        if (!is_array($value)) $value = func_get_args();
+        /*if (!is_array($value)) $value = func_get_args();
         else array_unshift($value, $set);
-        return $this->__call('sadd', $value);
+        return $this->__call('sadd', $value);*/
     }
 
 
