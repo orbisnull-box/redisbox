@@ -1,0 +1,28 @@
+{
+    "name": "artflame/redisbox",
+    "description": "Redis storage",
+    "authors": [
+        {
+            "name": "orbisnull",
+            "email": "zen4dev@gmail.com"
+        }
+    ],
+    
+    "minimum-stability": "dev",
+
+    "autoload": {
+        "psr-0": { "RedisBox": "src/" }
+    },
+
+    "repositories": [
+        {
+            "type":"git",
+            "url":"artflame:bind"
+        }
+    ],
+
+    "require": {
+        "php":">=5.3.0",
+        "artflame/bind": "dev-redis"
+    }
+}
