@@ -76,6 +76,11 @@ class Client
         return $answer;
     }
 
+    public function reportError($msg)
+    {
+        trigger_error($msg, E_USER_WARNING);
+    }
+
     protected function readReply()
     {
         $serverReply = fgets($this->connection);
@@ -167,7 +172,7 @@ class Client
     public function set($key, $value, $ttl = null)
     {
         if (!empty($ttl)) {
-            return $this->setEx($key, $value, $ttl);
+            return $this->setEx($key, $ttl, $value);
         }
         return $this->send(['set', $key, $value]);
     }
@@ -179,17 +184,17 @@ class Client
 
     public function get($key)
     {
-        return $this->send(array('get', $key));
+        return $this->send(['get', $key]);
     }
 
     public function flushDB()
     {
-        return $this->send(array('flushdb'));
+        return $this->send(['flushdb']);
     }
 
     public function ttl($key)
     {
-        return $this->send(array('ttl', $key));
+        return $this->send(['ttl', $key]);
     }
 
     public function sRem($set, $value)

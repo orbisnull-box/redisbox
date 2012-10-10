@@ -10,6 +10,8 @@ class Redis implements IStorage
     const DEFAULT_PREFIX = 'O';
     const LOCK_KEY_PREFIX = '.lock_key.';
     const TAG_PREFIX      = '.tag.';
+    const LOCK_KEY_TIME = '3000';
+    const LOCK_USLEEP_TIME =  1000;
 
     protected $options = [];
 
@@ -21,6 +23,7 @@ class Redis implements IStorage
     protected $prefix = self::DEFAULT_PREFIX;
     protected $tagPrefix = self::TAG_PREFIX;
     protected $lockKeyPrefix = self::LOCK_KEY_PREFIX;
+    protected $keyLockTime = self::LOCK_KEY_TIME;
 
     /**
      * @var Cluster
@@ -153,7 +156,7 @@ class Redis implements IStorage
     {
         $key = $this->prepareKey($key);
 
-        $set = $this->getClient($key)->set($key, $this->serialize($value));
+        $set = $this->getClient($key)->set($key, $this->serialize($value), $ttl);
 
         if (!$set) {
             return false;
@@ -167,7 +170,7 @@ class Redis implements IStorage
     /**
      * Read data from memory storage
      *
-     * @param string|array $key (string or array of string keys)
+     * @param string $key (string or array of string keys)
      * @param mixed $ttl_left = (ttl - time()) of key. Use to exclude dog-pile effect, with lock/unlock_key methods.
      * @return mixed
      */
@@ -216,30 +219,24 @@ class Redis implements IStorage
         throw new Exception('Not Implemented');
     }
 
-
     /**
      * Get exclusive mutex for key. Key will be still accessible to read and write, but
      * another process can exclude dog-pile effect, if before updating the key he will try to get this mutex.
      * @param mixed $key
-     * @param mixed $autoUnlocker - pass empty, just declared variable
+     * @param mixed $autoUnLocker - pass empty, just declared variable
      */
-    public function lock($key, &$autoUnlocker)
+    public function lock($key, &$autoUnLocker)
     {
-        // TODO: Implement lock() method.
-        throw new Exception('Not Implemented');
-    }
-
-    /**
-     * Try to lock key, and if key is already locked - wait, until key will be unlocked.
-     * Time of waiting is defined in max_wait_unlock constant of MemoryObject class.
-     * @param string $key
-     * @param $autoUnlocker
-     * @return boolean
-     */
-    public function acquire($key, &$autoUnlocker)
-    {
-        // TODO: Implement acquire() method.
-        throw new Exception('Not Implemented');
+        $lockKey = $this->prefix . $this->lockKeyPrefix . $key;
+        $client = $this->getClient($lockKey);
+        $r = $client->setNX($lockKey, 1);
+        if (!$r) {
+            return false;
+        }
+        $client->Expire($lockKey, $this->keyLockTime);
+        $autoUnLocker = new KeyLocker([$this, 'unlock']);
+        $autoUnLocker->setKey($key);
+        return true;
     }
 
     /**
@@ -249,8 +246,33 @@ class Redis implements IStorage
      */
     public function unlock(IKeyLocker $autoUnlocker)
     {
-        // TODO: Implement unlock() method.
-        throw new Exception('Not Implemented');
+        $key = $autoUnlocker->getKey();
+        if (empty($key)) {
+            $this->ReportError('Empty key in the AutoUnlocker', __LINE__);
+            return false;
+        }
+        $key = $this->prefix . $this->lockKeyPrefix . $key;
+        $autoUnlocker->revoke();
+        return $this->getClient($key)->del($key);
+    }
+
+    /**
+     * Try to lock key, and if key is already locked - wait, until key will be unlocked.
+     * Time of waiting is defined in max_wait_unlock constant of MemoryObject class.
+     * @param string $key
+     * @param $autoUnlocker
+     * @return boolean
+     */
+    public function acquire($key, &$autoUnLocker, $maxWait = IStorage::LOCK_WAIT_TIME)
+    {
+        $t = microtime(true);
+        while (!$this->lock($key, $autoUnLocker)) {
+            if ((microtime(true)-$t) > $maxWait) {
+                return false;
+            }
+            usleep(self::LOCK_USLEEP_TIME);
+        }
+        return true;
     }
 
     /**
@@ -266,8 +288,43 @@ class Redis implements IStorage
      */
     public function increment($key, $byValue = 1, $limitKeysCount = 0, $ttl = null)
     {
-        // TODO: Implement increment() method.
-        throw new Exception('Not Implemented');
+        $autoUnLocker = null;
+        if (!$this->acquire($key, $autoUnLocker)) {
+            return false;
+        }
+
+        $value = $this->read($key);
+
+        if ($value === null || $value === false) {
+            return $this->save($key, $byValue, $ttl);
+        }
+
+        if (is_array($value)) {
+            $value = $this->incrementArray($limitKeysCount, $value, $byValue);
+        } elseif (is_numeric($value) && is_numeric($byValue)) {
+            $value += $byValue;
+        } else {
+            $value .= $byValue;
+        }
+
+        if ($this->save($key, $value, $ttl)) {
+            return $value;
+        } else {
+            return false;
+        }
+    }
+
+    protected function incrementArray($limit_keys_count, $value, $by_value)
+    {
+        if ($limit_keys_count > 0 && (count($value) > $limit_keys_count)) $value = array_slice($value, $limit_keys_count*(-1)+1);
+        if (is_array($by_value))
+        {
+            $set_key = key($by_value);
+            if (!empty($set_key)) $value[$set_key] = $by_value[$set_key];
+            else $value[] = $by_value[0];
+        }
+        else $value[] = $by_value;
+        return $value;
     }
 
 
