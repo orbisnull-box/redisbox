@@ -22,6 +22,10 @@ class Cluster
         $this->options = $options;
         $keyDistributor = $this->getKeyDistributor();
 
+        if (count($hosts)>1) {
+            trigger_error('Work with more than one server not correct if you yse tags', E_USER_WARNING);
+        }
+
         foreach ($hosts as $host) {
             $hash = hash('md5', implode('|', $host));
             if (!isset($host['weight'])) {
