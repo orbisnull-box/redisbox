@@ -1,5 +1,5 @@
 {
-    "name": "artflame/redisbox",
+    "name": "orbisnull/redisbox",
     "description": "Redis storage",
     "authors": [
         {
@@ -14,15 +14,7 @@
         "psr-0": { "RedisBox": "src/" }
     },
 
-    "repositories": [
-        {
-            "type":"git",
-            "url":"artflame:bind"
-        }
-    ],
-
     "require": {
-        "php":">=5.3.0",
-        "artflame/bind": "dev-redis"
+        "php":">=5.3.0"
     }
 }
